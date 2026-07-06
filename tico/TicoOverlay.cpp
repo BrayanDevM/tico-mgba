@@ -578,9 +578,14 @@ static void RenderMenuItem(ImDrawList *dl, ImVec2 menuPos, ImVec2 menuSize, int 
     float itemY = menuPos.y + i * itemHeight;
     ImVec2 itemMin(menuPos.x, itemY), itemMax(menuPos.x + menuSize.x, itemY + itemHeight);
     if (isSelected) {
+        // A single-item list is both first and last, so it needs every corner
+        // rounded -- not just the top (which is all the old if/else-if gave it).
+        bool isFirst = (i == 0);
+        bool isLast = (i == numItems - 1);
         ImDrawFlags corners = 0; float itemRadius = 0.0f;
-        if (i == 0) { corners = ImDrawFlags_RoundCornersTop; itemRadius = cornerRadius; }
-        else if (i == numItems - 1) { corners = ImDrawFlags_RoundCornersBottom; itemRadius = cornerRadius; }
+        if (isFirst && isLast) { corners = ImDrawFlags_RoundCornersAll; itemRadius = cornerRadius; }
+        else if (isFirst) { corners = ImDrawFlags_RoundCornersTop; itemRadius = cornerRadius; }
+        else if (isLast) { corners = ImDrawFlags_RoundCornersBottom; itemRadius = cornerRadius; }
         ImU32 selCol = isDark ? IM_COL32(60,60,60,(int)(255*easeOut)) : IM_COL32(190,195,205,(int)(255*easeOut));
         dl->AddRectFilled(itemMin, itemMax, selCol, itemRadius, corners);
     }
