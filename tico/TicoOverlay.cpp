@@ -627,20 +627,54 @@ void TicoOverlay::RenderSaveStatesMenu(ImDrawList *dl, ImVec2 displaySize) {
     }
 }
 
-// Number of entries in the Tools submenu (currently just "Cheats"). Keep in
-// sync with the items list in RenderToolsMenu and the confirm handler.
-static constexpr int TOOLS_COUNT = 1;
+// Number of entries in the Tools submenu ("Cheats" + "Fast Forward"). Keep in
+// sync with RenderToolsMenu and the dirChanged/confirm handlers below.
+static constexpr int TOOLS_COUNT = 2;
 
 void TicoOverlay::RenderToolsMenu(ImDrawList *dl, ImVec2 displaySize) {
     float scale = ImGui::GetIO().FontGlobalScale;
-    std::string items[] = {tr("emulator_cheats")};
     const int N = TOOLS_COUNT;
     float itemH = 64.0f * scale;
     ImVec2 menuPos, menuSize; float easeOut, cornerRadius;
     RenderMenuContainer(dl, displaySize, 400.0f*scale, N, itemH, m_animTimer, m_isDarkMode, menuPos, menuSize, easeOut, cornerRadius);
     ImFont *font = ImGui::GetFont(); float fs = ImGui::GetFontSize() * 0.85f;
-    for (int i = 0; i < N; i++)
-        RenderMenuItem(dl, menuPos, menuSize, i, N, itemH, m_toolsSelection==i, cornerRadius, easeOut, m_isDarkMode, font, fs, items[i].c_str());
+
+    // Row 0: "Cheats" -- plain label, navigates to the Cheats submenu.
+    RenderMenuItem(dl, menuPos, menuSize, 0, N, itemH, m_toolsSelection==0, cornerRadius, easeOut, m_isDarkMode, font, fs, tr("emulator_cheats").c_str());
+
+    // Row 1: "Avance rápido" -- label + value + arrows, same pattern as the
+    // shader row in RenderSettingsMenu.
+    {
+        const int i = 1;
+        bool isSelected = (m_toolsSelection == i);
+        float itemY = menuPos.y + i * itemH;
+        ImVec2 itemMin(menuPos.x, itemY), itemMax(menuPos.x + menuSize.x, itemY + itemH);
+        if (isSelected) {
+            ImU32 selCol = m_isDarkMode ? IM_COL32(60,60,60,(int)(255*easeOut)) : IM_COL32(190,195,205,(int)(255*easeOut));
+            dl->AddRectFilled(itemMin, itemMax, selCol, cornerRadius, ImDrawFlags_RoundCornersBottom);
+        }
+        std::string label = tr("emulator_fast_forward");
+        static const char *speedNames[] = {"x1.5", "x2", "x3", "x4"};
+        std::string value = speedNames[m_fastForwardSpeedSelection % 4];
+
+        ImU32 textColor;
+        if (m_isDarkMode) textColor = isSelected ? IM_COL32(255,255,255,(int)(255*easeOut)) : IM_COL32(200,200,200,(int)(255*easeOut));
+        else textColor = isSelected ? IM_COL32(60,60,70,(int)(255*easeOut)) : IM_COL32(90,90,100,(int)(255*easeOut));
+
+        float textX = itemMin.x + 20.0f * scale;
+        ImVec2 labelSize = font->CalcTextSizeA(fs, FLT_MAX, 0.0f, label.c_str());
+        dl->AddText(font, fs, ImVec2(textX, itemMin.y + (itemH - labelSize.y)/2), textColor, label.c_str());
+        ImVec2 valueSize = font->CalcTextSizeA(fs, FLT_MAX, 0.0f, value.c_str());
+        float valueX = itemMax.x - valueSize.x - 40.0f * scale;
+        dl->AddText(font, fs, ImVec2(valueX, itemMin.y + (itemH - labelSize.y)/2), textColor, value.c_str());
+        if (isSelected) {
+            float arrowSize = 12.0f * scale, arrowY = itemMin.y + (itemH - arrowSize)/2;
+            float lx = valueX - arrowSize - 12.0f*scale;
+            dl->AddTriangleFilled(ImVec2(lx,arrowY+arrowSize/2), ImVec2(lx+arrowSize,arrowY), ImVec2(lx+arrowSize,arrowY+arrowSize), textColor);
+            float rx = valueX + valueSize.x + 12.0f*scale;
+            dl->AddTriangleFilled(ImVec2(rx+arrowSize,arrowY+arrowSize/2), ImVec2(rx,arrowY), ImVec2(rx,arrowY+arrowSize), textColor);
+        }
+    }
 }
 
 void TicoOverlay::RenderCheatsMenu(ImDrawList *dl, ImVec2 displaySize) {
@@ -854,6 +888,7 @@ void TicoOverlay::RenderHelpersBar(ImDrawList *dl, ImVec2 displaySize) {
     std::vector<Helper> helpers;
     if (m_currentMenu == OverlayMenu::QuickMenu) helpers.push_back({"-", tr("emulator_reset")});
     else if (m_currentMenu == OverlayMenu::Settings) helpers.push_back({"DPAD", tr("emulator_change")});
+    else if (m_currentMenu == OverlayMenu::Tools && m_toolsSelection == 1) helpers.push_back({"DPAD", tr("emulator_change")});
     else if (m_currentMenu == OverlayMenu::Cheats) helpers.push_back({"X", tr("emulator_details")});
     else if (m_currentMenu == OverlayMenu::CheatDetail) helpers.push_back({"DPAD", tr("emulator_change")});
     helpers.push_back({"B", tr("emulator_back")});
@@ -962,6 +997,9 @@ bool TicoOverlay::HandleInput(SDL_GameController *controller) {
             m_shaderSelection = (m_shaderSelection + dir + 6) % 6;
             ApplyScalingSettings(true);
         }
+    } else if (dirChanged && m_currentMenu == OverlayMenu::Tools && m_toolsSelection == 1) {
+        m_fastForwardSpeedSelection = (m_fastForwardSpeedSelection + dir + 4) % 4;
+        ApplyScalingSettings(true); // thin wrapper around SaveCoreSettings()
     } else if (dirChanged && m_currentMenu == OverlayMenu::CheatDetail && m_core) {
         // Cycle Auto(0) -> GameShark(2) -> PAR(3) -> Auto..., applying and
         // persisting immediately (same convention as Settings, above).
@@ -1004,6 +1042,7 @@ bool TicoOverlay::HandleInput(SDL_GameController *controller) {
             }
         } else if (m_currentMenu == OverlayMenu::Tools) {
             if (m_toolsSelection == 0) { m_currentMenu = OverlayMenu::Cheats; m_cheatSelection = 0; m_cheatScrollOffset = 0; }
+            else if (m_toolsSelection == 1) { m_fastForwardSpeedSelection = (m_fastForwardSpeedSelection + 1) % 4; ApplyScalingSettings(true); }
         } else if (m_currentMenu == OverlayMenu::Cheats) {
             if (m_core && !m_core->GetCheats().empty()) m_core->ToggleCheat((size_t)m_cheatSelection);
         }
@@ -1062,6 +1101,14 @@ void TicoOverlay::LoadCoreSettings() {
                 else if (v=="LcdGridV2") m_shaderSelection = 5;
                 else m_shaderSelection = 0;
             } else m_shaderSelection = 0;
+            if (j.contains("fast_forward_speed") && j["fast_forward_speed"].is_string()) {
+                std::string v = j["fast_forward_speed"].get<std::string>();
+                if (v=="1.5x") m_fastForwardSpeedSelection = 0;
+                else if (v=="2x") m_fastForwardSpeedSelection = 1;
+                else if (v=="3x") m_fastForwardSpeedSelection = 2;
+                else if (v=="4x") m_fastForwardSpeedSelection = 3;
+                else m_fastForwardSpeedSelection = 1;
+            } else m_fastForwardSpeedSelection = 1;
         } else { m_displayMode = MgbaDisplayMode::Integer; m_displaySize = MgbaDisplaySize::Auto; }
     } else { m_displayMode = MgbaDisplayMode::Integer; m_displaySize = MgbaDisplaySize::Auto; }
     ApplyScalingSettings(false);
@@ -1094,6 +1141,15 @@ void TicoOverlay::SaveCoreSettings() {
     default: shaderStr = "None"; break;
     }
     j["shader_type"] = shaderStr;
+    const char *ffSpeedStr = "2x";
+    switch (m_fastForwardSpeedSelection) {
+    case 0: ffSpeedStr = "1.5x"; break;
+    case 1: ffSpeedStr = "2x"; break;
+    case 2: ffSpeedStr = "3x"; break;
+    case 3: ffSpeedStr = "4x"; break;
+    default: break;
+    }
+    j["fast_forward_speed"] = ffSpeedStr;
     std::ofstream out(configPath); if (out.is_open()) { out << j.dump(4); out.close(); }
 }
 

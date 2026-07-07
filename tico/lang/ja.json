@@ -28,6 +28,7 @@
     "emulator_on": "オン",
     "emulator_off": "オフ",
     "emulator_tools": "ツール",
+    "emulator_fast_forward": "早送り",
     "emulator_cheats_recovered": "フリーズ後にチートを無効化しました",
     "emulator_cheat_type": "コードタイプ",
     "emulator_details": "詳細",
