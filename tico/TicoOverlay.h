@@ -18,7 +18,8 @@ enum class OverlayMenu
     SaveStates,
     Settings,
     Tools,
-    Cheats
+    Cheats,
+    CheatDetail
 };
 
 // ============================================================================
@@ -102,6 +103,7 @@ private:
     void RenderSettingsMenu(ImDrawList *dl, ImVec2 displaySize);
     void RenderToolsMenu(ImDrawList *dl, ImVec2 displaySize);
     void RenderCheatsMenu(ImDrawList *dl, ImVec2 displaySize);
+    void RenderCheatDetailMenu(ImDrawList *dl, ImVec2 displaySize);
     void RenderHelpersBar(ImDrawList *dl, ImVec2 displaySize);
     void RenderStatusBar(ImDrawList *dl, ImVec2 displaySize);
     void RenderRAAlerts(ImDrawList *dl, ImVec2 displaySize, float deltaTime);
@@ -120,6 +122,7 @@ private:
     int m_toolsSelection = 0;
     int m_cheatSelection = 0;
     int m_cheatScrollOffset = 0;
+    int m_cheatPreviewScrollOffset = 0;
     
     MgbaDisplayMode m_displayMode = MgbaDisplayMode::Integer;
     MgbaDisplaySize m_displaySize = MgbaDisplaySize::Auto;

@@ -34,6 +34,7 @@ struct TicoCheat {
     std::string name;
     std::vector<std::string> codes;      // hex code lines
     std::vector<std::string> directives; // preserved "!..." directives (except !disabled)
+    std::vector<std::string> unsupportedLines; // "[Section]"/"cheats=..." lines inside this block, preserved verbatim
     bool enabled = true;
 };
 
@@ -140,6 +141,11 @@ public:
     const std::vector<TicoCheat>& GetCheats() const { return m_cheats; }
     void ToggleCheat(size_t index); // flips enabled in-memory and re-applies (no persistence)
 
+    /// @brief Resolved GBACheatType (0=Auto, 2=GameShark, 3=ProActionReplay) for a cheat.
+    int GetCheatType(size_t index) const;
+    /// @brief Change a cheat's codec directive, persist it to its .cheats file, and re-apply.
+    void SetCheatType(size_t index, int type);
+
     /// @brief Set EGL contexts for HW rendering
     void SetHWRenderContext(SDL_Window *window, EGLContext mainCtx, EGLContext hwCtx);
 
@@ -174,7 +180,9 @@ private:
     std::string GetCheatsPath() const;      // CHEATS_PATH + <rombase> + ".cheats"
     void LoadCheats();                       // parse .cheats into m_cheats, all disabled
     void ApplyCheats();                      // retro_cheat_reset + one isolated set per enabled cheat
+    void WriteCheatsFile();                  // atomically rewrite .cheats from m_cheats (never !disabled)
     std::vector<TicoCheat> m_cheats;
+    std::vector<std::string> m_cheatsFilePreamble; // "[Section]"/"cheats=..." lines before any "# name"
 
     /// @name Cheat crash-guard (visibility only; cheats start disabled every launch)
     std::string GetCrashGuardPath() const;   // per-game marker of cheats active this session

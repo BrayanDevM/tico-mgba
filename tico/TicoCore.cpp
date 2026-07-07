@@ -1069,6 +1069,7 @@ std::string TicoCore::GetCheatsPath() const
 void TicoCore::LoadCheats()
 {
     m_cheats.clear();
+    m_cheatsFilePreamble.clear();
     if (m_gamePath.empty())
         return;
 
@@ -1105,8 +1106,14 @@ void TicoCore::LoadCheats()
         }
         else if (trimmed[0] == '[' || trimmed.rfind("cheats", 0) == 0)
         {
-            // Embedded EZ-Flash ([...]) or libretro (cheats = N) blocks are not
-            // supported in this simplified parser; skip the line.
+            // Embedded EZ-Flash ([...]) or libretro (cheats = N) header lines
+            // aren't interpreted by this simplified parser, but we keep them
+            // verbatim so WriteCheatsFile doesn't silently delete them from a
+            // hand-authored or imported .cheats file.
+            if (haveCurrent)
+                current.unsupportedLines.push_back(trimmed);
+            else
+                m_cheatsFilePreamble.push_back(trimmed);
             continue;
         }
         else
@@ -1186,6 +1193,86 @@ void TicoCore::ToggleCheat(size_t index)
         return;
     m_cheats[index].enabled = !m_cheats[index].enabled;
     ApplyCheats(); // no persistence: choices last only for this session
+}
+
+int TicoCore::GetCheatType(size_t index) const
+{
+    if (index >= m_cheats.size())
+        return 0;
+    return _cheatTypeFromDirectives(m_cheats[index].directives);
+}
+
+void TicoCore::SetCheatType(size_t index, int type)
+{
+    if (index >= m_cheats.size())
+        return;
+
+    std::vector<std::string> &directives = m_cheats[index].directives;
+    directives.erase(std::remove_if(directives.begin(), directives.end(), [](const std::string &d) {
+        return d.rfind("!GSAv1", 0) == 0 || d.rfind("!PARv3", 0) == 0;
+    }), directives.end());
+    if (type == 2)
+        directives.push_back("!GSAv1");
+    else if (type == 3)
+        directives.push_back("!PARv3");
+    // type == 0 (autodetect): no directive line
+
+    WriteCheatsFile();
+    ApplyCheats(); // re-decode with the new type immediately if this cheat is enabled
+}
+
+void TicoCore::WriteCheatsFile()
+{
+    if (m_gamePath.empty())
+        return;
+
+    std::string path = GetCheatsPath();
+    std::string tmpPath = path + ".tmp";
+
+    {
+        std::ofstream file(tmpPath, std::ios::trunc);
+        if (!file.is_open())
+            return;
+
+        for (const std::string &line : m_cheatsFilePreamble)
+            file << line << "\n";
+        if (!m_cheatsFilePreamble.empty())
+            file << "\n";
+
+        for (size_t i = 0; i < m_cheats.size(); ++i)
+        {
+            const TicoCheat &c = m_cheats[i];
+            if (i > 0)
+                file << "\n";
+            file << "# " << c.name << "\n";
+            for (const std::string &line : c.unsupportedLines)
+                file << line << "\n";
+            for (const std::string &d : c.directives)
+                file << d << "\n";
+            for (const std::string &code : c.codes)
+                file << code << "\n";
+        }
+    }
+
+    // Atomic-ish replace: a truncate-write on the destination path would leave
+    // a window where the file is empty/partial if power is lost mid-write.
+    // Losing this file means losing a whole game's cheat database, not just a
+    // small config, so write to a temp file and swap it in instead. Try the
+    // rename directly first (some libnx/FAT rename implementations refuse to
+    // overwrite an existing destination, which is why the remove+retry fallback
+    // exists) so we only ever delete the original if we actually need to.
+    if (rename(tmpPath.c_str(), path.c_str()) != 0)
+    {
+        remove(path.c_str());
+        if (rename(tmpPath.c_str(), path.c_str()) != 0)
+        {
+            // Both attempts failed: the good data is still sitting in tmpPath
+            // (never deleted), just not under the expected filename. Log it so
+            // it's diagnosable instead of silently vanishing.
+            tico_debug_log("CHEATS: WriteCheatsFile failed to replace '%s' with '%s'",
+                           path.c_str(), tmpPath.c_str());
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -28,5 +28,8 @@
     "emulator_on": "ON",
     "emulator_off": "OFF",
     "emulator_tools": "Tools",
-    "emulator_cheats_recovered": "Cheats disabled after a freeze"
+    "emulator_cheats_recovered": "Cheats disabled after a freeze",
+    "emulator_cheat_type": "Code Type",
+    "emulator_details": "Details",
+    "emulator_cheat_preview": "Preview"
 }

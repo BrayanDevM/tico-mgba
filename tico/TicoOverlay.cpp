@@ -245,6 +245,7 @@ void TicoOverlay::Render(ImVec2 displaySize, unsigned int gameTexture, float asp
         case OverlayMenu::Settings: RenderSettingsMenu(fgDrawList, displaySize); break;
         case OverlayMenu::Tools: RenderToolsMenu(fgDrawList, displaySize); break;
         case OverlayMenu::Cheats: RenderCheatsMenu(fgDrawList, displaySize); break;
+        case OverlayMenu::CheatDetail: RenderCheatDetailMenu(fgDrawList, displaySize); break;
         default: break;
         }
         RenderHelpersBar(fgDrawList, displaySize);
@@ -545,6 +546,11 @@ void TicoOverlay::RenderTitleCard(ImDrawList *dl, ImVec2 displaySize) {
     else if (m_currentMenu == OverlayMenu::Settings) titleStr = tr("emulator_settings");
     else if (m_currentMenu == OverlayMenu::Tools) titleStr = tr("emulator_tools");
     else if (m_currentMenu == OverlayMenu::Cheats) titleStr = tr("emulator_cheats");
+    else if (m_currentMenu == OverlayMenu::CheatDetail) {
+        const std::vector<TicoCheat> *cheats = m_core ? &m_core->GetCheats() : nullptr;
+        if (cheats && m_cheatSelection >= 0 && m_cheatSelection < (int)cheats->size())
+            titleStr = (*cheats)[m_cheatSelection].name;
+    }
     titleStr.erase(titleStr.find_last_not_of(" \n\r\t") + 1);
     if (titleStr.length() > 50) titleStr = titleStr.substr(0, 47) + "...";
     float scale = ImGui::GetIO().FontGlobalScale;
@@ -705,6 +711,89 @@ void TicoOverlay::RenderCheatsMenu(ImDrawList *dl, ImVec2 displaySize) {
     }
 }
 
+// Visible-line window for the code preview on the CheatDetail screen. Matches
+// RenderCheatsMenu's own maxVisible, so long cheats scroll instead of overflowing.
+static constexpr int CHEAT_PREVIEW_VISIBLE = 6;
+
+void TicoOverlay::RenderCheatDetailMenu(ImDrawList *dl, ImVec2 displaySize) {
+    const std::vector<TicoCheat> *cheats = m_core ? &m_core->GetCheats() : nullptr;
+    if (!cheats || m_cheatSelection < 0 || m_cheatSelection >= (int)cheats->size())
+        return;
+    const TicoCheat &c = (*cheats)[m_cheatSelection];
+
+    float scale = ImGui::GetIO().FontGlobalScale;
+    const int N = 1; float itemH = 64.0f * scale;
+    ImVec2 menuPos, menuSize; float easeOut, cornerRadius;
+    RenderMenuContainer(dl, displaySize, 400.0f*scale, N, itemH, m_animTimer, m_isDarkMode, menuPos, menuSize, easeOut, cornerRadius);
+    ImFont *font = ImGui::GetFont(); float fs = ImGui::GetFontSize() * 0.85f;
+
+    // Single row, always "selected" (it's the only interactive control here):
+    // full rounding on all corners, same as any other single-item panel.
+    ImVec2 itemMin = menuPos, itemMax(menuPos.x + menuSize.x, menuPos.y + itemH);
+    ImU32 selCol = m_isDarkMode ? IM_COL32(60,60,60,(int)(255*easeOut)) : IM_COL32(190,195,205,(int)(255*easeOut));
+    dl->AddRectFilled(itemMin, itemMax, selCol, cornerRadius, ImDrawFlags_RoundCornersAll);
+
+    std::string label = tr("emulator_cheat_type");
+    int type = m_core->GetCheatType((size_t)m_cheatSelection);
+    // GameShark/PAR are codec brand names, not translated -- same precedent as
+    // the hardcoded shader names in RenderSettingsMenu just below.
+    std::string value = (type == 2) ? "GameShark" : (type == 3) ? "PAR" : tr("emulator_auto");
+
+    ImU32 textColor = m_isDarkMode ? IM_COL32(255,255,255,(int)(255*easeOut)) : IM_COL32(60,60,70,(int)(255*easeOut));
+    float textX = itemMin.x + 20.0f * scale;
+    ImVec2 labelSize = font->CalcTextSizeA(fs, FLT_MAX, 0.0f, label.c_str());
+    dl->AddText(font, fs, ImVec2(textX, itemMin.y + (itemH - labelSize.y)/2), textColor, label.c_str());
+    ImVec2 valueSize = font->CalcTextSizeA(fs, FLT_MAX, 0.0f, value.c_str());
+    float valueX = itemMax.x - valueSize.x - 40.0f * scale;
+    dl->AddText(font, fs, ImVec2(valueX, itemMin.y + (itemH - labelSize.y)/2), textColor, value.c_str());
+    float arrowSize = 12.0f * scale, arrowY = itemMin.y + (itemH - arrowSize)/2;
+    float lx = valueX - arrowSize - 12.0f*scale;
+    dl->AddTriangleFilled(ImVec2(lx,arrowY+arrowSize/2), ImVec2(lx+arrowSize,arrowY), ImVec2(lx+arrowSize,arrowY+arrowSize), textColor);
+    float rx = valueX + valueSize.x + 12.0f*scale;
+    dl->AddTriangleFilled(ImVec2(rx+arrowSize,arrowY+arrowSize/2), ImVec2(rx,arrowY), ImVec2(rx,arrowY+arrowSize), textColor);
+
+    // Read-only preview of this cheat's raw code lines, below the panel. Fixed
+    // visible window (CHEAT_PREVIEW_VISIBLE) scrolled with up/down -- unused by
+    // anything else on this single-row screen -- with the same chevron language
+    // RenderCheatsMenu already uses, instead of overflowing or a static "+N".
+    int total = (int)c.codes.size();
+    int visible = total < CHEAT_PREVIEW_VISIBLE ? total : CHEAT_PREVIEW_VISIBLE;
+    int maxOffset = total - visible; if (maxOffset < 0) maxOffset = 0;
+    if (m_cheatPreviewScrollOffset > maxOffset) m_cheatPreviewScrollOffset = maxOffset;
+    if (m_cheatPreviewScrollOffset < 0) m_cheatPreviewScrollOffset = 0;
+
+    float previewFs = fs * 0.85f;
+    float lineH = previewFs * 1.7f;
+    float headerH = 34.0f * scale; // room for the "Vista previa" label row, with breathing space below it
+    float previewY = menuPos.y + menuSize.y + 14.0f * scale;
+    float previewH = headerH + visible * lineH;
+    ImU32 previewBg = IM_COL32(0, 0, 0, (int)(70 * easeOut));
+    dl->AddRectFilled(ImVec2(menuPos.x, previewY), ImVec2(menuPos.x + menuSize.x, previewY + previewH), previewBg, 8.0f*scale);
+
+    ImU32 dimColor = m_isDarkMode ? IM_COL32(255,255,255,(int)(110*easeOut)) : IM_COL32(40,40,40,(int)(140*easeOut));
+    dl->AddText(font, previewFs * 0.85f, ImVec2(menuPos.x + 14.0f*scale, previewY + 6.0f*scale), dimColor, tr("emulator_cheat_preview").c_str());
+
+    float lineY = previewY + headerH;
+    ImU32 codeColor = m_isDarkMode ? IM_COL32(255,255,255,(int)(190*easeOut)) : IM_COL32(40,40,40,(int)(200*easeOut));
+    for (int row = 0; row < visible; ++row) {
+        dl->AddText(font, previewFs, ImVec2(menuPos.x + 14.0f*scale, lineY), codeColor, c.codes[m_cheatPreviewScrollOffset + row].c_str());
+        lineY += lineH;
+    }
+
+    if (total > visible) {
+        float cx = menuPos.x + menuSize.x * 0.5f;
+        float aw = 8.0f * scale, ah = 5.0f * scale;
+        if (m_cheatPreviewScrollOffset > 0) { // more above
+            float ty = previewY + headerH - lineH * 0.5f;
+            dl->AddTriangleFilled(ImVec2(cx, ty), ImVec2(cx - aw, ty + ah), ImVec2(cx + aw, ty + ah), dimColor);
+        }
+        if (m_cheatPreviewScrollOffset < maxOffset) { // more below
+            float by = previewY + previewH - 6.0f * scale;
+            dl->AddTriangleFilled(ImVec2(cx - aw, by - ah), ImVec2(cx + aw, by - ah), ImVec2(cx, by), dimColor);
+        }
+    }
+}
+
 void TicoOverlay::RenderSettingsMenu(ImDrawList *dl, ImVec2 displaySize) {
     float scale = ImGui::GetIO().FontGlobalScale;
     const int N = 3; float itemH = 64.0f * scale;
@@ -765,7 +854,10 @@ void TicoOverlay::RenderHelpersBar(ImDrawList *dl, ImVec2 displaySize) {
     std::vector<Helper> helpers;
     if (m_currentMenu == OverlayMenu::QuickMenu) helpers.push_back({"-", tr("emulator_reset")});
     else if (m_currentMenu == OverlayMenu::Settings) helpers.push_back({"DPAD", tr("emulator_change")});
-    helpers.push_back({"B", tr("emulator_back")}); helpers.push_back({"A", tr("emulator_select")});
+    else if (m_currentMenu == OverlayMenu::Cheats) helpers.push_back({"X", tr("emulator_details")});
+    else if (m_currentMenu == OverlayMenu::CheatDetail) helpers.push_back({"DPAD", tr("emulator_change")});
+    helpers.push_back({"B", tr("emulator_back")});
+    if (m_currentMenu != OverlayMenu::CheatDetail) helpers.push_back({"A", tr("emulator_select")}); // A does nothing on this screen
     float totalWidth = PADDING * 2;
     for (size_t i = 0; i < helpers.size(); i++) {
         totalWidth += BUTTON_SIZE + 8.0f*scale + font->CalcTextSizeA(fontSize, FLT_MAX, 0.0f, helpers[i].desc.c_str()).x;
@@ -793,7 +885,7 @@ bool TicoOverlay::HandleInput(SDL_GameController *controller) {
     if (togglePressed && !m_toggleHeld && debounced) {
         m_toggleHeld = true; m_lastInputTime = now;
         if (m_currentMenu == OverlayMenu::None) Show();
-        else if (m_currentMenu == OverlayMenu::SaveStates || m_currentMenu == OverlayMenu::Settings || m_currentMenu == OverlayMenu::Tools || m_currentMenu == OverlayMenu::Cheats) { m_currentMenu = OverlayMenu::QuickMenu; m_animTimer = 0.4f; }
+        else if (m_currentMenu == OverlayMenu::SaveStates || m_currentMenu == OverlayMenu::Settings || m_currentMenu == OverlayMenu::Tools || m_currentMenu == OverlayMenu::Cheats || m_currentMenu == OverlayMenu::CheatDetail) { m_currentMenu = OverlayMenu::QuickMenu; m_animTimer = 0.4f; }
         else Hide();
         return true;
     }
@@ -806,6 +898,9 @@ bool TicoOverlay::HandleInput(SDL_GameController *controller) {
     bool right = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_RIGHT);
     bool confirm = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_B);
     bool back = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_A);
+    // Nintendo-swapped, same as confirm/back above: SDL's logical X/Y are also
+    // cross-mapped on this pad, so physical X reads as SDL_CONTROLLER_BUTTON_Y.
+    bool details = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_Y);
     Sint16 axisY = SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_LEFTY);
     Sint16 axisX = SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_LEFTX);
     if (axisY < -16000) up = true; if (axisY > 16000) down = true;
@@ -820,6 +915,11 @@ bool TicoOverlay::HandleInput(SDL_GameController *controller) {
         else if (m_currentMenu == OverlayMenu::Settings) m_settingsSelection = (m_settingsSelection + 2) % 3;
         else if (m_currentMenu == OverlayMenu::Tools) m_toolsSelection = (m_toolsSelection + TOOLS_COUNT - 1) % TOOLS_COUNT;
         else if (m_currentMenu == OverlayMenu::Cheats) { int n = m_core ? (int)m_core->GetCheats().size() : 0; if (n > 0) m_cheatSelection = (m_cheatSelection + n - 1) % n; }
+        else if (m_currentMenu == OverlayMenu::CheatDetail) {
+            // Scrolls the read-only code preview; there's nothing to "select"
+            // here, so this moves the offset directly instead of wrapping.
+            if (m_cheatPreviewScrollOffset > 0) --m_cheatPreviewScrollOffset;
+        }
     }
     if (!up) m_upHeld = false;
     if (down && !m_downHeld && debounced) {
@@ -829,6 +929,12 @@ bool TicoOverlay::HandleInput(SDL_GameController *controller) {
         else if (m_currentMenu == OverlayMenu::Settings) m_settingsSelection = (m_settingsSelection + 1) % 3;
         else if (m_currentMenu == OverlayMenu::Tools) m_toolsSelection = (m_toolsSelection + 1) % TOOLS_COUNT;
         else if (m_currentMenu == OverlayMenu::Cheats) { int n = m_core ? (int)m_core->GetCheats().size() : 0; if (n > 0) m_cheatSelection = (m_cheatSelection + 1) % n; }
+        else if (m_currentMenu == OverlayMenu::CheatDetail && m_core &&
+                 m_cheatSelection >= 0 && m_cheatSelection < (int)m_core->GetCheats().size()) {
+            int total = (int)m_core->GetCheats()[m_cheatSelection].codes.size();
+            int maxOffset = total - CHEAT_PREVIEW_VISIBLE; if (maxOffset < 0) maxOffset = 0;
+            if (m_cheatPreviewScrollOffset < maxOffset) ++m_cheatPreviewScrollOffset;
+        }
     }
     if (!down) m_downHeld = false;
 
@@ -856,6 +962,15 @@ bool TicoOverlay::HandleInput(SDL_GameController *controller) {
             m_shaderSelection = (m_shaderSelection + dir + 6) % 6;
             ApplyScalingSettings(true);
         }
+    } else if (dirChanged && m_currentMenu == OverlayMenu::CheatDetail && m_core) {
+        // Cycle Auto(0) -> GameShark(2) -> PAR(3) -> Auto..., applying and
+        // persisting immediately (same convention as Settings, above).
+        static const int order[] = {0, 2, 3};
+        int cur = m_core->GetCheatType((size_t)m_cheatSelection);
+        int idx = 0;
+        for (int i = 0; i < 3; ++i) if (order[i] == cur) { idx = i; break; }
+        idx = (idx + dir + 3) % 3;
+        m_core->SetCheatType((size_t)m_cheatSelection, order[idx]);
     }
 
     if (confirm && !m_confirmHeld && debounced) {
@@ -898,10 +1013,21 @@ bool TicoOverlay::HandleInput(SDL_GameController *controller) {
     if (back && !m_backHeld && debounced) {
         m_backHeld = true; m_lastInputTime = now;
         if (m_currentMenu == OverlayMenu::QuickMenu) Hide();
+        else if (m_currentMenu == OverlayMenu::CheatDetail) m_currentMenu = OverlayMenu::Cheats; // Detalle -> Trucos
         else if (m_currentMenu == OverlayMenu::Cheats) m_currentMenu = OverlayMenu::Tools; // Trucos -> Herramientas
         else m_currentMenu = OverlayMenu::QuickMenu; // Tools/Settings/SaveStates -> QuickMenu
     }
     if (!back) m_backHeld = false;
+
+    if (details && !m_xHeld && debounced) {
+        m_xHeld = true; m_lastInputTime = now;
+        if (m_currentMenu == OverlayMenu::Cheats && m_core && !m_core->GetCheats().empty()) {
+            m_currentMenu = OverlayMenu::CheatDetail;
+            m_cheatPreviewScrollOffset = 0; // don't carry over a stale offset from a previous cheat
+        }
+    }
+    if (!details) m_xHeld = false;
+
     return true;
 }
 

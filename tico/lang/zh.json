@@ -28,5 +28,8 @@
     "emulator_on": "开",
     "emulator_off": "关",
     "emulator_tools": "工具",
-    "emulator_cheats_recovered": "卡死后已禁用金手指"
+    "emulator_cheats_recovered": "卡死后已禁用金手指",
+    "emulator_cheat_type": "代码类型",
+    "emulator_details": "详情",
+    "emulator_cheat_preview": "预览"
 }
