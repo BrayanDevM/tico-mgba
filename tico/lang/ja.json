@@ -28,5 +28,8 @@
     "emulator_on": "オン",
     "emulator_off": "オフ",
     "emulator_tools": "ツール",
-    "emulator_cheats_recovered": "フリーズ後にチートを無効化しました"
+    "emulator_cheats_recovered": "フリーズ後にチートを無効化しました",
+    "emulator_cheat_type": "コードタイプ",
+    "emulator_details": "詳細",
+    "emulator_cheat_preview": "プレビュー"
 }
