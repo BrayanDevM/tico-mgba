@@ -88,6 +88,9 @@ public:
     /// @brief Shader selection accessor
     int GetShaderSelection() const { return m_shaderSelection; }
 
+    /// @brief Fast-forward speed selection accessor (0=1.5x, 1=2x, 2=3x, 3=4x)
+    int GetFastForwardSpeedSelection() const { return m_fastForwardSpeedSelection; }
+
     /// @brief Check if user wants to reset
     bool ShouldReset() const { return m_shouldReset; }
     void ClearReset() { m_shouldReset = false; }
@@ -120,6 +123,7 @@ private:
     int m_settingsSelection = 0;
     int m_shaderSelection = 0; // 0=None, 1=LCD, 2=Scale2x
     int m_toolsSelection = 0;
+    int m_fastForwardSpeedSelection = 1; // 0=1.5x, 1=2x (default), 2=3x, 3=4x
     int m_cheatSelection = 0;
     int m_cheatScrollOffset = 0;
     int m_cheatPreviewScrollOffset = 0;

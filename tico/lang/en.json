@@ -28,6 +28,7 @@
     "emulator_on": "ON",
     "emulator_off": "OFF",
     "emulator_tools": "Tools",
+    "emulator_fast_forward": "Fast Forward",
     "emulator_cheats_recovered": "Cheats disabled after a freeze",
     "emulator_cheat_type": "Code Type",
     "emulator_details": "Details",

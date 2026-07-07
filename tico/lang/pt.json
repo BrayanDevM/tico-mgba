@@ -28,6 +28,7 @@
     "emulator_on": "ON",
     "emulator_off": "OFF",
     "emulator_tools": "Ferramentas",
+    "emulator_fast_forward": "Avanço rápido",
     "emulator_cheats_recovered": "Trapaças desativadas após travamento",
     "emulator_cheat_type": "Tipo de código",
     "emulator_details": "Detalhes",

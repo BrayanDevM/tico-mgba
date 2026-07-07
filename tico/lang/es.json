@@ -28,6 +28,7 @@
     "emulator_on": "ON",
     "emulator_off": "OFF",
     "emulator_tools": "Herramientas",
+    "emulator_fast_forward": "Avance rápido",
     "emulator_cheats_recovered": "Trucos desactivados tras un cuelgue",
     "emulator_cheat_type": "Tipo de código",
     "emulator_details": "Detalles",
