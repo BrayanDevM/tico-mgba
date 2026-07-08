@@ -32,5 +32,10 @@
     "emulator_cheats_recovered": "Trucos desactivados tras un cuelgue",
     "emulator_cheat_type": "Tipo de código",
     "emulator_details": "Detalles",
-    "emulator_cheat_preview": "Vista previa"
+    "emulator_cheat_preview": "Vista previa",
+    "emulator_restart_rom": "Reiniciar ROM",
+    "emulator_cancel": "Cancelar",
+    "emulator_confirm_restart_title": "¿Reiniciar la ROM?",
+    "emulator_confirm_exit_title": "¿Salir del juego?",
+    "emulator_unsaved_progress_warning": "El progreso no guardado se perderá."
 }

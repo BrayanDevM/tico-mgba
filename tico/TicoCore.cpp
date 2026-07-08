@@ -1045,6 +1045,24 @@ void TicoCore::Reset()
     }
 }
 
+bool TicoCore::RestartGame()
+{
+    if (!m_gameLoaded)
+        return false;
+
+    std::string path = m_gamePath;
+    UnloadGame();
+
+    // Clear whatever's still queued from the just-ended session so it doesn't
+    // glitch into the first moments of the restarted one (a real exit+relaunch
+    // never had this problem since the whole process, audio device included,
+    // was torn down).
+    if (m_audioFlushCallback)
+        m_audioFlushCallback();
+
+    return LoadGame(path);
+}
+
 // ============================================================================
 // Cheats (per-game mGBA .cheats file, applied via libretro autodetect)
 // ============================================================================

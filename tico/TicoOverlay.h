@@ -19,7 +19,9 @@ enum class OverlayMenu
     Settings,
     Tools,
     Cheats,
-    CheatDetail
+    CheatDetail,
+    ConfirmRestart,
+    ConfirmExit
 };
 
 // ============================================================================
@@ -95,6 +97,10 @@ public:
     bool ShouldReset() const { return m_shouldReset; }
     void ClearReset() { m_shouldReset = false; }
 
+    /// @brief Check if user confirmed a full ROM restart (Quick Menu > Restart ROM)
+    bool ShouldRestartGame() const { return m_shouldRestartGame; }
+    void ClearRestartGame() { m_shouldRestartGame = false; }
+
 private:
     void RenderGame(ImDrawList *dl, ImVec2 displaySize, unsigned int texture,
                     float aspectRatio, int width, int height,
@@ -107,6 +113,7 @@ private:
     void RenderToolsMenu(ImDrawList *dl, ImVec2 displaySize);
     void RenderCheatsMenu(ImDrawList *dl, ImVec2 displaySize);
     void RenderCheatDetailMenu(ImDrawList *dl, ImVec2 displaySize);
+    void RenderConfirmMenu(ImDrawList *dl, ImVec2 displaySize, const std::string &confirmLabel, int selection);
     void RenderHelpersBar(ImDrawList *dl, ImVec2 displaySize);
     void RenderStatusBar(ImDrawList *dl, ImVec2 displaySize);
     void RenderRAAlerts(ImDrawList *dl, ImVec2 displaySize, float deltaTime);
@@ -127,6 +134,8 @@ private:
     int m_cheatSelection = 0;
     int m_cheatScrollOffset = 0;
     int m_cheatPreviewScrollOffset = 0;
+    int m_confirmRestartSelection = 0; // 0=Cancel, 1=Confirm
+    int m_confirmExitSelection = 0;    // 0=Cancel, 1=Confirm
     
     MgbaDisplayMode m_displayMode = MgbaDisplayMode::Integer;
     MgbaDisplaySize m_displaySize = MgbaDisplaySize::Auto;
@@ -153,6 +162,7 @@ private:
     bool m_shouldExitToSystem = false;
     bool m_shouldExit = false;
     bool m_shouldReset = false;
+    bool m_shouldRestartGame = false;
 
     uint32_t m_batteryLevel = 100;
     bool m_isCharging = false;
