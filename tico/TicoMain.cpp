@@ -499,6 +499,22 @@ void ProcessEvents()
     }
 }
 
+// Re-derives the audio pipeline's sample rate and (re-)arms the shader
+// pipeline for whatever ROM g_core currently has loaded. Runs once after the
+// initial LoadGame() in main(), and again after a Restart ROM reload.
+static void ConfigureAudioAndShaderForLoadedGame()
+{
+    if (!g_core) return;
+
+    double adjustedSampleRate = g_core->GetSampleRate();
+    if (g_core->GetFPS() > 0.0)
+        adjustedSampleRate *= (60.0 / g_core->GetFPS());
+    g_audio.SetCoreSampleRate(adjustedSampleRate);
+    LOG_INFO("AUDIO", "Configured audio pipeline for %.0f Hz core output (stretched to 60Hz)",
+             g_core->GetSampleRate());
+    g_core->InitShaderPipeline();
+}
+
 void HandleInput()
 {
     SDL_GameController *controllers[4] = {nullptr, nullptr, nullptr, nullptr};
@@ -570,6 +586,14 @@ void HandleInput()
             if (g_core)
             {
                 g_core->Reset();
+            }
+        }
+        if (g_overlay->ShouldRestartGame())
+        {
+            g_overlay->ClearRestartGame();
+            if (g_core && g_core->IsGameLoaded() && g_core->RestartGame())
+            {
+                ConfigureAudioAndShaderForLoadedGame();
             }
         }
         return;
@@ -958,13 +982,7 @@ int main(int argc, char *argv[])
     }
     else
     {
-        double adjustedSampleRate = g_core->GetSampleRate();
-        if (g_core->GetFPS() > 0.0)
-            adjustedSampleRate *= (60.0 / g_core->GetFPS());
-        g_audio.SetCoreSampleRate(adjustedSampleRate);
-        LOG_INFO("AUDIO", "Configured audio pipeline for %.0f Hz core output (stretched to 60Hz)",
-                 g_core->GetSampleRate());
-        g_core->InitShaderPipeline();
+        ConfigureAudioAndShaderForLoadedGame();
     }
 
     Uint32 lastTime = SDL_GetTicks();

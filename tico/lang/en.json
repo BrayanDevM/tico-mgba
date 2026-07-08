@@ -32,5 +32,10 @@
     "emulator_cheats_recovered": "Cheats disabled after a freeze",
     "emulator_cheat_type": "Code Type",
     "emulator_details": "Details",
-    "emulator_cheat_preview": "Preview"
+    "emulator_cheat_preview": "Preview",
+    "emulator_restart_rom": "Restart ROM",
+    "emulator_cancel": "Cancel",
+    "emulator_confirm_restart_title": "Restart the ROM?",
+    "emulator_confirm_exit_title": "Exit the game?",
+    "emulator_unsaved_progress_warning": "Unsaved progress will be lost."
 }

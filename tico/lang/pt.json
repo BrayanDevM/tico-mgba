@@ -32,5 +32,10 @@
     "emulator_cheats_recovered": "Trapaças desativadas após travamento",
     "emulator_cheat_type": "Tipo de código",
     "emulator_details": "Detalhes",
-    "emulator_cheat_preview": "Pré-visualização"
+    "emulator_cheat_preview": "Pré-visualização",
+    "emulator_restart_rom": "Reiniciar ROM",
+    "emulator_cancel": "Cancelar",
+    "emulator_confirm_restart_title": "Reiniciar a ROM?",
+    "emulator_confirm_exit_title": "Sair do jogo?",
+    "emulator_unsaved_progress_warning": "O progresso não salvo será perdido."
 }

@@ -246,6 +246,8 @@ void TicoOverlay::Render(ImVec2 displaySize, unsigned int gameTexture, float asp
         case OverlayMenu::Tools: RenderToolsMenu(fgDrawList, displaySize); break;
         case OverlayMenu::Cheats: RenderCheatsMenu(fgDrawList, displaySize); break;
         case OverlayMenu::CheatDetail: RenderCheatDetailMenu(fgDrawList, displaySize); break;
+        case OverlayMenu::ConfirmRestart: RenderConfirmMenu(fgDrawList, displaySize, tr("emulator_restart_rom"), m_confirmRestartSelection); break;
+        case OverlayMenu::ConfirmExit: RenderConfirmMenu(fgDrawList, displaySize, tr("emulator_exit_game"), m_confirmExitSelection); break;
         default: break;
         }
         RenderHelpersBar(fgDrawList, displaySize);
@@ -551,6 +553,8 @@ void TicoOverlay::RenderTitleCard(ImDrawList *dl, ImVec2 displaySize) {
         if (cheats && m_cheatSelection >= 0 && m_cheatSelection < (int)cheats->size())
             titleStr = (*cheats)[m_cheatSelection].name;
     }
+    else if (m_currentMenu == OverlayMenu::ConfirmRestart) titleStr = tr("emulator_confirm_restart_title");
+    else if (m_currentMenu == OverlayMenu::ConfirmExit) titleStr = tr("emulator_confirm_exit_title");
     titleStr.erase(titleStr.find_last_not_of(" \n\r\t") + 1);
     if (titleStr.length() > 50) titleStr = titleStr.substr(0, 47) + "...";
     float scale = ImGui::GetIO().FontGlobalScale;
@@ -604,8 +608,8 @@ static void RenderMenuItem(ImDrawList *dl, ImVec2 menuPos, ImVec2 menuSize, int 
 
 void TicoOverlay::RenderQuickMenu(ImDrawList *dl, ImVec2 displaySize) {
     float scale = ImGui::GetIO().FontGlobalScale;
-    std::string items[] = {tr("emulator_save_state"), tr("emulator_load_state"), tr("emulator_tools"), tr("emulator_settings"), tr("emulator_exit_game")};
-    const int N = 5; float itemH = 64.0f * scale;
+    std::string items[] = {tr("emulator_save_state"), tr("emulator_load_state"), tr("emulator_tools"), tr("emulator_settings"), tr("emulator_restart_rom"), tr("emulator_exit_game")};
+    const int N = 6; float itemH = 64.0f * scale;
     ImVec2 menuPos, menuSize; float easeOut, cornerRadius;
     RenderMenuContainer(dl, displaySize, 400.0f*scale, N, itemH, m_animTimer, m_isDarkMode, menuPos, menuSize, easeOut, cornerRadius);
     ImFont *font = ImGui::GetFont(); float fs = ImGui::GetFontSize() * 0.85f;
@@ -878,6 +882,29 @@ void TicoOverlay::RenderSettingsMenu(ImDrawList *dl, ImVec2 displaySize) {
     }
 }
 
+// Shared Yes/Cancel confirmation screen for destructive Quick Menu actions
+// (Restart ROM, Exit Game). The title comes from RenderTitleCard (per-menu,
+// like every other screen); this only draws the warning subtitle and the
+// two-item Cancel/Confirm list, reusing the same building blocks as every
+// other list menu in the overlay.
+void TicoOverlay::RenderConfirmMenu(ImDrawList *dl, ImVec2 displaySize, const std::string &confirmLabel, int selection) {
+    float scale = ImGui::GetIO().FontGlobalScale;
+    const int N = 2; float itemH = 64.0f * scale;
+    ImVec2 menuPos, menuSize; float easeOut, cornerRadius;
+    RenderMenuContainer(dl, displaySize, 400.0f*scale, N, itemH, m_animTimer, m_isDarkMode, menuPos, menuSize, easeOut, cornerRadius);
+    ImFont *font = ImGui::GetFont(); float fs = ImGui::GetFontSize() * 0.85f;
+
+    std::string warning = tr("emulator_unsaved_progress_warning");
+    float warnFs = fs * 0.8f;
+    ImVec2 warnSize = font->CalcTextSizeA(warnFs, FLT_MAX, 0.0f, warning.c_str());
+    ImU32 warnColor = m_isDarkMode ? IM_COL32(220,220,220,(int)(200*easeOut)) : IM_COL32(60,60,70,(int)(200*easeOut));
+    dl->AddText(font, warnFs, ImVec2(menuPos.x + (menuSize.x - warnSize.x) / 2.0f, menuPos.y - warnSize.y - 16.0f*scale), warnColor, warning.c_str());
+
+    std::string items[] = {tr("emulator_cancel"), confirmLabel};
+    for (int i = 0; i < N; i++)
+        RenderMenuItem(dl, menuPos, menuSize, i, N, itemH, selection==i, cornerRadius, easeOut, m_isDarkMode, font, fs, items[i].c_str());
+}
+
 void TicoOverlay::RenderHelpersBar(ImDrawList *dl, ImVec2 displaySize) {
     float t = std::min(m_animTimer / 0.4f, 1.0f);
     float easeOut = 1.0f - std::pow(1.0f - t, 3.0f);
@@ -945,7 +972,7 @@ bool TicoOverlay::HandleInput(SDL_GameController *controller) {
 
     if (up && !m_upHeld && debounced) {
         m_upHeld = true; m_lastInputTime = now;
-        if (m_currentMenu == OverlayMenu::QuickMenu) m_quickMenuSelection = (m_quickMenuSelection + 4) % 5;
+        if (m_currentMenu == OverlayMenu::QuickMenu) m_quickMenuSelection = (m_quickMenuSelection + 5) % 6;
         else if (m_currentMenu == OverlayMenu::SaveStates) m_saveStateSlot = (m_saveStateSlot + 3) % 4;
         else if (m_currentMenu == OverlayMenu::Settings) m_settingsSelection = (m_settingsSelection + 2) % 3;
         else if (m_currentMenu == OverlayMenu::Tools) m_toolsSelection = (m_toolsSelection + TOOLS_COUNT - 1) % TOOLS_COUNT;
@@ -955,11 +982,13 @@ bool TicoOverlay::HandleInput(SDL_GameController *controller) {
             // here, so this moves the offset directly instead of wrapping.
             if (m_cheatPreviewScrollOffset > 0) --m_cheatPreviewScrollOffset;
         }
+        else if (m_currentMenu == OverlayMenu::ConfirmRestart) m_confirmRestartSelection = (m_confirmRestartSelection + 1) % 2;
+        else if (m_currentMenu == OverlayMenu::ConfirmExit) m_confirmExitSelection = (m_confirmExitSelection + 1) % 2;
     }
     if (!up) m_upHeld = false;
     if (down && !m_downHeld && debounced) {
         m_downHeld = true; m_lastInputTime = now;
-        if (m_currentMenu == OverlayMenu::QuickMenu) m_quickMenuSelection = (m_quickMenuSelection + 1) % 5;
+        if (m_currentMenu == OverlayMenu::QuickMenu) m_quickMenuSelection = (m_quickMenuSelection + 1) % 6;
         else if (m_currentMenu == OverlayMenu::SaveStates) m_saveStateSlot = (m_saveStateSlot + 1) % 4;
         else if (m_currentMenu == OverlayMenu::Settings) m_settingsSelection = (m_settingsSelection + 1) % 3;
         else if (m_currentMenu == OverlayMenu::Tools) m_toolsSelection = (m_toolsSelection + 1) % TOOLS_COUNT;
@@ -970,6 +999,8 @@ bool TicoOverlay::HandleInput(SDL_GameController *controller) {
             int maxOffset = total - CHEAT_PREVIEW_VISIBLE; if (maxOffset < 0) maxOffset = 0;
             if (m_cheatPreviewScrollOffset < maxOffset) ++m_cheatPreviewScrollOffset;
         }
+        else if (m_currentMenu == OverlayMenu::ConfirmRestart) m_confirmRestartSelection = (m_confirmRestartSelection + 1) % 2;
+        else if (m_currentMenu == OverlayMenu::ConfirmExit) m_confirmExitSelection = (m_confirmExitSelection + 1) % 2;
     }
     if (!down) m_downHeld = false;
 
@@ -1019,7 +1050,8 @@ bool TicoOverlay::HandleInput(SDL_GameController *controller) {
             case 1: m_isSaveMode = false; m_currentMenu = OverlayMenu::SaveStates; break;
             case 2: m_currentMenu = OverlayMenu::Tools; m_toolsSelection = 0; break;
             case 3: m_currentMenu = OverlayMenu::Settings; m_settingsSelection = 0; break;
-            case 4: m_shouldExit = true; break;
+            case 4: m_currentMenu = OverlayMenu::ConfirmRestart; m_confirmRestartSelection = 0; break;
+            case 5: m_currentMenu = OverlayMenu::ConfirmExit; m_confirmExitSelection = 0; break;
             }
         } else if (m_currentMenu == OverlayMenu::SaveStates) {
             if (m_core) {
@@ -1045,6 +1077,12 @@ bool TicoOverlay::HandleInput(SDL_GameController *controller) {
             else if (m_toolsSelection == 1) { m_fastForwardSpeedSelection = (m_fastForwardSpeedSelection + 1) % 4; ApplyScalingSettings(true); }
         } else if (m_currentMenu == OverlayMenu::Cheats) {
             if (m_core && !m_core->GetCheats().empty()) m_core->ToggleCheat((size_t)m_cheatSelection);
+        } else if (m_currentMenu == OverlayMenu::ConfirmRestart) {
+            if (m_confirmRestartSelection == 1) { m_shouldRestartGame = true; Hide(); return true; }
+            else m_currentMenu = OverlayMenu::QuickMenu;
+        } else if (m_currentMenu == OverlayMenu::ConfirmExit) {
+            if (m_confirmExitSelection == 1) { m_shouldExit = true; Hide(); return true; }
+            else m_currentMenu = OverlayMenu::QuickMenu;
         }
     }
     if (!confirm) m_confirmHeld = false;

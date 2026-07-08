@@ -101,6 +101,11 @@ public:
     /// @brief Reset the game
     void Reset();
 
+    /// @brief Fully reload the current ROM from disk: saves+unloads, then
+    /// reloads (fresh save data, cheats reset to disabled) — same end state as
+    /// exiting to the tico launcher and re-entering, without leaving the process.
+    bool RestartGame();
+
     /// @brief Pause/Resume
     void Pause();
     void Resume();

@@ -32,5 +32,10 @@
     "emulator_cheats_recovered": "卡死后已禁用金手指",
     "emulator_cheat_type": "代码类型",
     "emulator_details": "详情",
-    "emulator_cheat_preview": "预览"
+    "emulator_cheat_preview": "预览",
+    "emulator_restart_rom": "重启 ROM",
+    "emulator_cancel": "取消",
+    "emulator_confirm_restart_title": "重启 ROM？",
+    "emulator_confirm_exit_title": "退出游戏？",
+    "emulator_unsaved_progress_warning": "未保存的进度将丢失。"
 }
